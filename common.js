@@ -1744,3 +1744,5 @@ $(function() {
 	});																	
 	/* FINE GESTIONE SPOSTA SPESE */
 });
+
+$("body").on("click",".pippo",function(){console.log("aaaaa")});

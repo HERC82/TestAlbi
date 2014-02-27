@@ -9,6 +9,14 @@ function capitalize( toUpc ) {
 	return toUpc.slice( 0, 1 ).toUpperCase() + toUpc.slice( 1 ).toLowerCase();
 }
 
+//TRIM FIX FOR IE8
+
+if(typeof String.prototype.trim !== 'function') {
+  String.prototype.trim = function() {
+    return this.replace(/^\s+|\s+$/g, ''); 
+  }
+}
+
 var preloadData,
 	analisiSpeseRqData,
 	elencoMovimentiCategoria,
@@ -194,10 +202,419 @@ function reloadAllWidgets(speseContante,analisiSpese,budget,analisiSpeseDettagli
 
 var SCreloading = false
 var filteredValues = []
-
+var inputTagFocused = null;
+//var availableTags = [];
 /* FINE VARIABILI */
 	
 $(function() {
+	
+	/*
+	$.ajax({
+		url: "/conto-e-carte/bilancio-familiare/json/elenco-tags",
+		type: 'POST',
+		success: function (data) {
+			//console.log(data);
+			availableTags = data;
+		}
+	});			
+	
+	*/
+	//BLUR REMOVED BY PINCY REQUEST
+	$('body')/*.on('blur', '.boxtag', function (event){
+		var newTag = $(this).val();
+		addTag(newTag,$(this));*/
+	.on('keypress', function (event){
+		if(event.which === 13){
+			$(".messaggio-errore-tag").remove()
+			if(inputTagFocused != null){
+				var newTag = inputTagFocused.val() + String.fromCharCode(event.which);				
+				addTag(newTag,inputTagFocused);
+			}
+		}    	
+    }).on('keyup', '.boxtag', function(event){
+		var currentString = $(this).val();
+		if(currentString.indexOf(",")!= -1){
+			currentString = currentString.replace(",","");
+			$(this).val(currentString)
+		}
+	}).on('focus', '.boxtag', function (event){    	
+    	inputTagFocused = $(this);    	    	
+    }).on('click', '.remove-tag', function (event){    	
+    	var movIndex = $(this).data("movindex");
+    	var tagIndex = $(this).data("tag-index");
+    	removeTag(movIndex,tagIndex);
+    }).on('mouseover', '.tag-ico:not(".qtipped")', function (event){    	   
+    	$( this ).qtip({
+			content: {
+				text: function(){
+					var content = "<div class='pal tag-tip'><h4 class='tag-title'>TAG</h4>"+$.trim($(this).data("tag-summary"))+"</div>"; 
+					if ( $.trim($(this).data("tag-summary")) == ""){
+						content = "<div class='pal'>Aggiungi TAG</div>";
+					}
+					return content;
+				}
+			},
+			position: {
+				my: "bottom center",
+				at: "top center"
+			}, 
+			show: {ready: true},
+			hide: {fixed: true, delay: 200},
+			style: {classes: 'qtip-tag-list bilancio-familiare-tip', tip: {
+				width: 14,
+				height: 7,
+				mimic: "center"
+			}}
+			 
+   	 	}).addClass("qtipped").show();    	    	
+    }).on('change', '.qtip .content input:checkbox', function (event){    	       	
+    	toggleMultiMovTagInputBox($(this));
+    }).on('submit', '#frm-sposta-movimento', function (event){    	
+    	event.preventDefault();
+    	return false;
+    	
+    }).on('change', '#dettagli-spese-scelta-tipo-mov-sintesi', function (evt) {
+    		
+  	
+    	
+    	/*var tipoMov = $(this).val();
+    	////console.log("tipoMov: " + tipoMov);
+		var urlJsonMov = '/conto-e-carte/bilancio-familiare/elenco-movimenti-sintesi';
+		$.ajax({
+			url: urlJsonMov,
+			data: {				
+				tipoMov: tipoMov
+			},			
+			type: 'POST',
+			cache: false,
+			context: this
+		}).done(function (resultFilter) {				
+			$(this).closest(".tipo-mov-InOut").qtip('option', 'content.text', resultFilter);
+		})	*/    	
+		$(this).closest("#ovl-elenco-movimenti-sintesi").submit();
+    	
+    });
+	
+	
+	
+	
+	/*
+	
+	 $( ".boxtag" ).autocomplete({
+		 source: "/conto-e-carte/bilancio-familiare/json/elenco-tags",
+		 minLength: 2,
+		 select: function( event, ui ) {
+			 consolo.log( ui.item ? "Selected: " + ui.item.value + " aka " + ui.item.id : "Nothing selected, input was " + this.value );
+		 }
+	 });	
+	
+	*/ 
+	 
+	 
+	function split( val ) {
+		return val.split( /,\s*/ );
+	}
+	
+	function extractLast( term ) {
+		 return split( term ).pop();
+	}
+	
+	
+	
+	
+	$( "body" ).on( "keydown", ".boxtag", function( event ) {
+		// don't navigate away from the field on tab when selecting an item
+		if ( event.keyCode === $.ui.keyCode.TAB && $( this ).data( "ui-autocomplete" ).menu.active ) {
+			event.preventDefault();
+		}
+	}).on( "focus", ".boxtag:not('.autocompleted')", function( event ) {
+		var pointer = $(this);
+		$(this).autocomplete({
+			source: function( request, response ) {
+				$.post( "/conto-e-carte/bilancio-familiare/json/elenco-tags", {
+					//searchTag: extractLast( request.term )
+					searchTag: request.term
+				}, response );
+			},
+			search: function() {
+				// custom minLength
+				//var term = extractLast( this.value );
+				var term = this.value;
+				if ( term.length < 2 ) {
+					return false;
+				}
+				////console.log("term: " + term);
+				return term
+			},
+			focus: function() {
+				// prevent value inserted on focus
+				return false;
+			},
+			select: function( event, ui ) {
+				
+				this.value = ui.item.value.trim();
+				/*
+				var terms = split( this.value );
+				// remove the current input
+				terms.pop();
+				// add the selected item
+				terms.push( ui.item.value );
+				// add placeholder to get the comma-and-space at the end
+				terms.push( "" );
+				this.value = terms.join( ", " );
+				
+				*/
+				
+				return false;
+			 },appendTo: pointer.closest(".qtip")
+		}).addClass("autocompleted");
+	});
+	 
+	function getTagsContainer(movIndex){
+		var divId = $("#divTagBaseName").val() + movIndex;
+		return $(divId);
+	}	
+
+	function getProvenienza(){
+		if( $("#divTagBaseName").val() == "#tagContainerDettaglio-"){
+			return "dettaglio";
+		}else{
+			return "sintesi";
+		}		
+	}	
+
+	function hideMultiMovTagInputBox(clickedCB){
+		clickedCB.closest(".qtip.q-colorbox").find(".qtip-footer").hide();
+		clickedCB.closest("tbody").find(".btn-sposta-spese").prop("disabled", false).removeClass("btn-disabled");
+	}
+	
+	function showMultiMovTagInputBox(clickedCB){
+		if( clickedCB.closest(".qtip.q-colorbox").find(".qtip-footer").length == 0){
+			var html = "<div class='qtip-footer float-left bar-multiple-tag-edit' style='width:"+clickedCB.closest(".qtip.q-colorbox").find(".qtip-titlebar").width()+"px'><div class='float-left left-multiple-edit'>";
+			var html = html + "<a class='tag-ico'></a><div class='tag-ico-gray'></div><input type='text' class='boxtag' id='input-tag-multiple' placeholder='inserisci tag'></div><div class='float-left center-multiple-edit'></div><div class='float-right right-multiple-edit'>";
+			var html = html + "<a class='btn-big btn-black btn-sposta-multipla mrl' href='#'>SPOSTA / NASCONDI</a></div></div>"
+			clickedCB.closest(".qtip.q-colorbox").append(html);
+		}else{
+			if(clickedCB.closest(".qtip.q-colorbox").find(".qtip-footer").is(":not(:visible)"))
+			clickedCB.closest(".qtip.q-colorbox").find(".qtip-footer").show();			
+		}
+		$(".qtip.q-colorbox:visible").qtip("reposition");
+		//WATERMARK PER IE
+		if( !Modernizr.input.placeholder ){
+			$(".qtip-footer").find('input[placeholder], textarea[placeholder]')
+			.each(function(){
+				$(this).watermark($(this).attr('placeholder'));
+			});
+		}
+	}
+
+	function toggleMultiMovTagInputBox(clickedCB){
+		if( clickedCB.closest(".qtip .content").find("input:checkbox:checked").length ==1){
+			clickedCB.closest(".qtip .content").find("input:checkbox:checked").closest(".description").find(".tag-ico:not('.btn-active-detail')").click();
+			clickedCB.closest("tbody").find(".btn-sposta-spese").prop("disabled", false).removeClass("btn-disabled");
+			$(".qtip-footer").hide();
+			return;
+		}
+		else if( clickedCB.closest(".qtip .content").find("input:checkbox:checked").length > 10 && clickedCB.is(":checked")){
+			clickedCB.prop('checked', false).change();
+			alert("Puoi selezionare al massimo 10 movimenti per volta.")
+			return;
+		}
+    	var showBox = false;
+		clickedCB.closest("tbody").find(".tag-ico.btn-active-detail").click();
+		clickedCB.closest("tbody").find(".btn-sposta-spese").prop("disabled", true).addClass("btn-disabled");
+    	if(clickedCB.is(":checked")){
+    		showBox = true;
+    	}else{
+        	clickedCB.closest(".qtip .content").find("input:checkbox:checked").each(function( index ) {
+        		if($(this).is(':checked')){
+        			showBox = true;
+        			return false;
+        		}        		
+        	});    		
+    	}    	
+    	if(showBox){
+    		showMultiMovTagInputBox(clickedCB);
+    	}else{
+    		hideMultiMovTagInputBox(clickedCB);
+    	}
+    	
+    }
+    
+	//torna una stringa con i tag separati da virgola, 
+	//escludendo eventualment il tag con indice skipTagIndex (remove tag), 
+	//aggiungendo eventualmente il nuovo tag (newTag)
+	function getTagString(movIndex,skipTagIndex,newTag){		
+		var tagsContainer = getTagsContainer(movIndex);
+		var tags = tagsContainer.find('a.remove-tag');
+		var tagString = "";
+		for(var i=0;i<tags.length;i++){			
+			if(i != skipTagIndex && tags[i].getAttribute("data-tag-value") != null){
+				if(tagString.length > 0){
+					tagString = tagString + ",";
+				}			
+				tagString = tagString + $.trim(tags[i].getAttribute("data-tag-value"));
+			}
+			////console.log("ciclo " + i + "|skipTagIndex|" + skipTagIndex + "|tagString|" + tagString);
+		}		
+		if(tagString.substring(tagString.length-1,tagString.length) == ","){
+			tagString = tagString.substring(0,tagString.length-1);
+		}
+		////console.log("fine ciclo|" + tagString);
+		tagString = $.trim(tagString); 
+		if($.trim(newTag) != ""){
+			if(tagString.length > 0){
+				tagString = tagString + ",";
+			}
+			tagString = tagString + $.trim(newTag);
+		}
+		return tagString;
+	}
+	
+	function removeTag(movIndex,tagIndex){
+		////console.log("removeTag: " + movIndex + " " + tagIndex)
+		var tagString = getTagString(movIndex,parseInt(tagIndex),"");
+		////console.log("tagString: " + tagString)
+		updateTags("",tagString,movIndex)		
+	}
+	
+	function addTag(newTag, inputObj){		
+		if($.trim(newTag) == ""){
+			return false;
+		}		
+				
+		newTag = newTag.replace(/[\n\r]/g, '');
+		newTag = newTag.replace(',','');
+		newTag = newTag.trim();
+		var movIndex = null;
+		var tagString = "";
+		if(inputObj.attr('id') == "input-tag-multiple"){		
+        	$(".qtip .content input:checkbox").each(function( index ) {
+        		if($(this).is(':checked')){
+        			movIndex = $(this).val();
+        			////console.log("movIndex:" + movIndex + "|newTag:" + newTag);
+        			tagString = getTagString(movIndex,-1,newTag);
+        			////console.log("tagString:" + tagString);        					
+        			updateTags(newTag,tagString,movIndex)		        			
+        		}        		
+        		inputObj.val("");
+        	}); 			
+			
+		}else{
+			inputObj.closest(".containerdett").find(".div-tags").append("<div class='tag-preload loading'></div>")			
+			movIndex = inputObj.data("movindex");
+			tagString = getTagString(movIndex,-1,newTag);		 
+			inputObj.val("");		
+			updateTags(newTag,tagString,movIndex,inputObj)			
+		}
+	}	
+	
+	
+	function addTagsToWidget(tagString,movIndex){
+		
+		var tagsContainer = getTagsContainer(movIndex);
+		////console.log("movIndex: " + movIndex)
+		////console.log("tagsContainer: " + tagsContainer.attr("id"))
+		$(".div-tags a[data-movindex=" + movIndex + "]").remove();
+		if($.trim(tagString) != ""){
+			var arrTags = tagString.split(",");					
+			for(var i = 0; i < arrTags.length; i++){
+				var newA = document.createElement( "A" );
+				newA.innerHTML = arrTags[i] +  "  <span class='x-remove-tag x-white'>x</span>";
+				newA.className = "remove-tag remove-tag-button";
+				newA.setAttribute("href","#");
+				newA.setAttribute("id",""+i);			
+				newA.setAttribute("data-tag-index",""+i);
+				newA.setAttribute("data-movindex",""+movIndex);
+				newA.setAttribute("data-tag-value",""+arrTags[i]);
+				tagsContainer.append(newA);
+				tagsContainer.append(" ");
+				////console.log("appended:" + arrTags[i]); 
+			}
+			if($("#tabella-dettaglio-spese tr.description").eq(parseInt(movIndex)).find(".btn-active-detail").length == 0){
+				//var oldColor = $("#tabella-dettaglio-spese tr.description").eq(parseInt(movIndex)).css("background-color");
+				$("#tabella-dettaglio-spese tr.description").eq(parseInt(movIndex)).addClass("tagline-highlighted");
+				setTimeout(function(){$("#tabella-dettaglio-spese tr.description").eq(parseInt(movIndex)).removeClass("tagline-highlighted")},9000);
+			}
+
+			$(".center-multiple-edit").text("Il tag è stato aggiunto correttamente").removeClass("red").addClass("green");
+			setTimeout(function(){$(".center-multiple-edit").text("").removeClass("green")},6000);
+		}		
+		
+		var tipNode = $(".div-tags").closest("#container-tabella-dettaglio-spese").find("a[data-movindex=" + movIndex + "]");
+		if(tipNode.length > 0){
+			tipNode.data("tag-summary",$.trim(tagString));
+		}
+		if(getTagsContainer(movIndex).children("a.remove-tag").length == 0){
+			$("tr.description").eq(movIndex).find("a.ico-detail").removeClass("has-tags");	
+		}
+		else{
+			$("tr.description").eq(movIndex).find("a.ico-detail").addClass("has-tags");	
+		}
+	}
+	
+	function updateTags(newTag,tagString,movIndex,inputObj){
+		////console.log("Provenienza|"+getProvenienza())
+		////console.log("newTag|"+newTag)
+		////console.log("tagString|"+tagString)
+		////console.log("movIndex|"+movIndex)
+		var stringPointerSelection = ""
+		if( getProvenienza() == "sintesi" ){stringPointerSelection = "#tagContainerSpese-"}
+		else if( getProvenienza() == "dettaglio" ){stringPointerSelection ="#tagContainerDettaglio-"}		
+		$.ajax({
+			url: "/conto-e-carte/bilancio-familiare/update-tag-movimento",
+			type: 'POST',
+			data: {
+				provenienza: getProvenienza(),
+				indiceMovimento: movIndex,				
+				tags: tagString,
+				newTag: newTag
+			},
+			success: function (data) {
+				if(data.esito == "ok"){			
+					//TODO: farsi tornare l'elenco dei tag dal servizio?
+					addTagsToWidget(tagString,movIndex);					
+				}else{
+					if(data.messaggio){
+						
+						if($(".qtip-footer").is(":visible")){
+							$(".center-multiple-edit").text(data.messaggio).removeClass("green").addClass("red");
+							setTimeout(function(){$(".center-multiple-edit").text("").removeClass("red")},9000);
+						}
+						else{														
+							if( $("#tagContainerSposta-"+movIndex).is(":visible") ){
+								$("#tagContainerSposta-"+movIndex).closest("#tagAndInputContainerSposta").append("<div class='red messaggio-errore-tag'>"+data.messaggio+"</div>")
+								setTimeout(function(){$(".messaggio-errore-tag").remove()},5000);
+							}else{
+								$(stringPointerSelection+movIndex).closest("div.containerdett").append("<div class='red messaggio-errore-tag'>"+data.messaggio+"</div>")
+								setTimeout(function(){$(".messaggio-errore-tag").remove()},5000);								
+							}							
+						}
+					}else{
+						if($(".qtip-footer").is(":visible")){
+							//alert("Si e' verificato un problema tecnico nell'aggiornamento del tag")
+							$(".center-multiple-edit").text("Si e' verificato un problema tecnico nell'aggiornamento del tag in riga "+movIndex).addClass("red");
+							setTimeout(function(){$(".center-multiple-edit").text("").removeClass("red")},9000);
+						}
+						else{
+							$(stringPointerSelection+movIndex).closest("div").append("<div class='red messaggio-errore-tag'>Si è verificato un problema tecnico nell'aggiornamento del tag</div>")
+							setTimeout(function(){$(".messaggio-errore-tag").remove()},5000);
+						}
+					}
+				}
+				if(inputObj != null)
+				inputObj.closest(".containerdett").find(".tag-preload").remove();
+			}
+		});		
+	}
+	
+    $('body').on('click', '.brand-box-link', function (event){
+    	
+        event.preventDefault();       
+        createMovInOutQtip("Spese",'',$(this).data("id-brand"),$(this).data("nome-brand"));
+        
+   });
+	
 	// demo 4 step controllo se è un primo accesso	
 	var primoAccessoMM = $('#moneymap-4step').data('primoaccesso')
 	if(primoAccessoMM == true ){ createSliderMM4step();};	
@@ -468,7 +885,7 @@ $(function() {
 		connectWith: ".fin-widget-container",
 		tolerance: 'pointer',
 		update: function(event, ui){
-			//console.log("updated");
+			////console.log("updated");
 			if(ui.item.hasClass("toggleableWidget1")){
 				//$(".toggleableWidget2 #grafico-analisi-viewport").data("flexslider").remove()
 				$(".toggleableWidget2").insertBefore(ui.item)
@@ -1049,7 +1466,7 @@ $(function() {
 		if($(this).data("provenienza") == "dettaglio"){
 			$("#btn-dettagli-spese").qtip("hide"); //Nascondo il qtip sotto
 		}
-		else if($(this).data("provenienza") == "sintesi"){
+		else if($(this).data("provenienza") == "sintesi" || $(this).data("provenienza") == "sintesi-nascosti"){
 			$(".tipo-mov-InOut").qtip("hide");//Nascondo il qtip sotto
 		}
 		else if($(this).data("provenienza") == "nascosti" || $(this).data("provenienza") == "operazione"){
@@ -1071,6 +1488,16 @@ $(function() {
 						this.set('content.text', data);
 						
 						$.initElements.apply(this.elements.content);
+						//appendi le select grafiche al tip non al body
+						this.elements.content
+.find( 'select.select-grafica' ).selectmenu({appendTo:this.elements.tooltip}); 
+						//INIT WATERMARK FOR IE8/9
+							if( !Modernizr.input.placeholder ){
+								api.elements.content.find('input[placeholder], textarea[placeholder]')
+								.each(function(){
+									$(this).watermark($(this).attr('placeholder'));
+								});
+							}
 						this.elements.target
 							.bind('navigate.tooltip.fineco', $.xhrLoader)
 							.bind('message.tooltip.fineco', $.xhrMessage)
@@ -1080,8 +1507,8 @@ $(function() {
 									//reloadAllWidgets(true,true,true,true)
 									api.hide();
 									}
-								});												
-							this.elements.content.on("submit validate.submit", "form", { tooltip: this }, $.xhrDispatcher);									
+								});										
+							//this.elements.content.on("submit validate.submit", "form", { tooltip: this }, $.xhrDispatcher);									
 					}																			
 				}			
 			},																												
@@ -1137,7 +1564,7 @@ $(function() {
 						$("#btn-dettagli-spese").qtip("show");
 						setTimeout(function(){$("#qtip-overlay").css({"opacity":"100"}).show()},400);
 						//mostro l'overlay perché anche qua, bug di qtip2+
-					}else if($(this).find("#indiceProvenienza").val() == "sintesi"){
+					}else if($(this).find("#indiceProvenienza").val() == "sintesi" || $(this).find("#indiceProvenienza").val() == "sintesi-nascosti"){
 						api.destroy();
 						if($('#tabella-mov-tipo').val() == "spese"){
 							 $(".tbl-spese").qtip("show");	
@@ -1160,6 +1587,126 @@ $(function() {
 		})
 		$("#escludiMovimento").change();
 	});
+	
+	//FUNZIONE MODIFICA MULTIPLA
+	$('body').on('click','.btn-sposta-multipla:not([aria-describedby^=qtip])',function(evt){	
+		var provenienza
+		var indiceMovimento = []
+		var targetElements = $(this).closest(".qtip").find("input[type='checkbox']:checked")
+		targetElements.each(function(index, element){
+			indiceMovimento.push($(this).closest("tr.description").find(".btn-sposta-spese").data("indice-movimento"));
+			provenienza = $(this).closest("tr.description").find(".btn-sposta-spese").data("provenienza");
+		});
+		if(provenienza == "dettaglio"){
+			$("#btn-dettagli-spese").qtip("hide"); //Nascondo il qtip sotto
+		}
+		else if(provenienza == "sintesi" || provenienza == "sintesi-nascosti"){
+			$(".tipo-mov-InOut").qtip("hide");//Nascondo il qtip sotto
+		}
+		else if(provenienza == "nascosti" || provenienza == "operazione"){
+			$(this).closest(".q-colorbox").qtip("hide");
+		}
+		$(this).qtip({		
+			content: {
+			title: {text: ' ', button: 'Chiudi'},
+			text: '<div class="text-align-center loading"></div>',
+				ajax: {
+					url: '/conto-e-carte/bilancio-familiare/categoria-movimento',// URL to the local file
+					type: 'POST', // POST or GET
+					data: {
+						listaIndiciMovimenti: indiceMovimento.toString(),
+						provenienza: provenienza
+					},
+					success: function(data) {
+						this.set('content.text', data);
+						
+						$.initElements.apply(this.elements.content);
+						this.elements.target
+							.bind('navigate.tooltip.fineco', $.xhrLoader)
+							.bind('message.tooltip.fineco', $.xhrMessage)
+							.bind('navigation-done.tooltip.fineco', function(evt, api, data) {
+								if (data.responseText.replace(/\s+/gm, '' ) == '' ) {
+									//window.location.reload(true)
+									//reloadAllWidgets(true,true,true,true)
+									api.hide();
+									}
+								});												
+							//this.elements.content.on("submit validate.submit", "form", { tooltip: this }, $.xhrDispatcher);									
+					}																			
+				}			
+			},																												
+			show: {event: 'click', ready: true, modal: true},
+			hide: {
+				event: 'click',
+				target: $('#qtip-overlay, .qtip-close')
+			},															
+			position: {my: 'center', at: 'center', /*viewport: $(window),*/ target: $(window)},
+			effect: false,																
+			style: {
+				classes : "q-colorbox qtip-sposta-spese",
+				width: 360																
+			},
+			events: {
+				hide: function(event, api) {
+					if( !api.elements.target.closest('body').length )
+						return;
+					
+					if($(this).find("#indiceProvenienza").val() == "operazione"){
+						api.destroy();
+						$(".ico-ope."+$("#colonnaDiProvenienza").val()).qtip().show();
+						setTimeout(function(){$("#qtip-overlay").css({"opacity":"100"}).show()},400);
+						//mostro l'overlay perché anche qua, bug di qtip2+
+					}else if($(this).find("#indiceProvenienza").val() == "dettaglio"){
+						 $.when( $.bf.analisiSpeseRq ).done(function( analisiSpeseRqData ){
+							 var optSelectedId = $("#scelta-categoria").children("option:selected").val();
+							 var optSelected
+							 $.each(analisiSpeseRqData.codiceCategoria, function (index, value) {
+								 if (optSelectedId == value) {
+									 optSelected = index
+									 return false
+								 }
+							 });
+							reloadAllWidgets(true,true,true,false,true);
+							var totaleSpeseCategoria = resultDetCat.spesaCategoria[optSelected];
+							var totaleBudgetCategoria = resultDetCat.budgetCategoria[optSelected];
+							var saldoBudgetCategoria = resultDetCat.rimanenzaCategoria[optSelected];
+							optSelected == null ? totaleSpeseCategoria = "-" : totaleSpeseCategoria = Globalize.format(totaleSpeseCategoria, "c2");
+							optSelected == null ? totaleBudgetCategoria = "-" : totaleBudgetCategoria = Globalize.format(totaleBudgetCategoria, "c2");
+							optSelected == null ? saldoBudgetCategoria = "-" : saldoBudgetCategoria = Globalize.format(saldoBudgetCategoria, "c2");
+							$('#totale-spese-categoria').text(totaleSpeseCategoria);
+							$('#totale-budget-categoria').text(totaleBudgetCategoria);
+							$('#saldo-budget-categoria').text(saldoBudgetCategoria);				
+						});
+						// distruggo il Qtip corrente perché sennò propaga gli eventi , bug di qtip 2+
+						api.destroy();
+						$(".tab-composizione").trigger("click");
+						$("#btn-dettagli-spese").qtip("show");
+						setTimeout(function(){$("#qtip-overlay").css({"opacity":"100"}).show()},400);
+						//mostro l'overlay perché anche qua, bug di qtip2+
+					}else if($(this).find("#indiceProvenienza").val() == "sintesi" || $(this).find("#indiceProvenienza").val() == "sintesi-nascosti"){
+						api.destroy();
+						if($('#tabella-mov-tipo').val() == "spese"){
+							 $(".tbl-spese").qtip("show");	
+						}
+						else if($('#tabella-mov-tipo').val() == "entrate"){
+							$(".tbl-entrate").qtip("show");	
+						}
+						setTimeout(function(){$("#qtip-overlay").css({"opacity":"100"}).show()},400);
+						//mostro l'overlay perché anche qua, bug di qtip2+
+						setTimeout(function(){reloadAllWidgets(true,true,true,true,true);}, 500)
+					}else if($(this).find("#indiceProvenienza").val() == "nascosti"){
+						reloadAllWidgets(true,true,true,true,true);
+						api.destroy();
+						$(".movimenti-nascosti-qcolorbox").trigger("click");
+						setTimeout(function(){$("#qtip-overlay").css({"opacity":"100"}).show()},400);
+						//mostro l'overlay perché anche qua, bug di qtip2+
+					}
+				}
+			}				
+		})
+		$("#escludiMovimento").change();
+	});
+	
 	
 	$('body').on('change','#riclassificazioneAutomatica',function(evt){
 		var value = $(this).prop('checked');								
